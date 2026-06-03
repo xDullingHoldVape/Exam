@@ -22,6 +22,7 @@ namespace Exam
         private RichTextBox txtLog;
 
         // State
+
         private System.Windows.Forms.Timer _timer;   // Updates elapsed time display every 100 ms
         private DateTime _startTime;
         private bool _isRunning = false;
