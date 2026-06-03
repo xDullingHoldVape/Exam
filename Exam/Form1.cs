@@ -232,7 +232,7 @@ namespace Exam
                             lblResult.Text = $"Result: FOUND  \"{password}\"";
                             lblResult.ForeColor = Color.DarkGreen;
                             progressBar.Value = 100;
-                            Log($"✓ Multi-thread found: \"{password}\" in {elapsed:F2}s");
+                            Log($"Multi-thread found: \"{password}\" in {elapsed:F2}s");
 
                             // Run single-thread on a background thread for comparison
                             Log("Running single-thread for comparison...");
