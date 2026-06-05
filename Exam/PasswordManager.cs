@@ -8,7 +8,7 @@ namespace C_FinalTask
     public class PasswordManager
     {
         // Salt added before hashing
-        public const string SALT = "MySuperSecretSalt123";
+        public const string SALT = "OOPFinalTaskSalt123";
 
         // Characters allowed in passwords
         private const string CHARSET = "abcdefghijklmnopqrstuvwxyz0123456789";
