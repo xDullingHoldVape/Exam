@@ -21,7 +21,6 @@ namespace Exam
         private Label lblTime;
         private Label lblResult;
         private RichTextBox txtLog;
-
         // State variables
         private BFEngine _engine;
         private System.Windows.Forms.Timer _elapsedTimer;
