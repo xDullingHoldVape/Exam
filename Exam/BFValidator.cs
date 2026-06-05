@@ -9,14 +9,12 @@
             _targetHashBytes = ConvertHexToBytes(targetHash);
         }
 
-        // Сравниваем byte массивы вместо строк (намного быстрее)
         public bool IsMatch(string candidate)
         {
             byte[] candidateHash = PasswordManager.HashPasswordBytes(candidate);
             return ByteArrayEquals(_targetHashBytes, candidateHash);
         }
 
-        // Быстрое сравнение byte массивов
         private bool ByteArrayEquals(byte[] a, byte[] b)
         {
             if (a.Length != b.Length) return false;
