@@ -15,6 +15,12 @@ namespace C_FinalTask
 
         private readonly Random _random = new Random();
 
+
+        [ThreadStatic]
+        private static SHA256 _sha256;
+
+        private static SHA256 Sha256 => _sha256 ?? (_sha256 = SHA256.Create());
+
         // Generates a random password with length 4 or 5
         public string GeneratePassword()
         {
@@ -33,20 +39,17 @@ namespace C_FinalTask
         // Creates a SHA256 hash from the password and salt
         public static string HashPassword(string plainText)
         {
-            // Combine salt + password into one string
             string salted = SALT + plainText;
-
-            // Convert the string to bytes
             byte[] inputBytes = Encoding.UTF8.GetBytes(salted);
+            byte[] hashBytes = Sha256.ComputeHash(inputBytes);
+            return BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
+        }
 
-            // SHA256.Create())
-            using (var sha256 = SHA256.Create())
-            {
-                byte[] hashBytes = sha256.ComputeHash(inputBytes);
-
-                //  Convert the hash to a hexadecimal string.
-                return BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
-            }
+        public static byte[] HashPasswordBytes(string plainText)
+        {
+            string salted = SALT + plainText;
+            byte[] inputBytes = Encoding.UTF8.GetBytes(salted);
+            return Sha256.ComputeHash(inputBytes);
         }
     }
 }

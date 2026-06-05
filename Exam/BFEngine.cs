@@ -10,6 +10,12 @@ namespace C_FinalTask
     // This class handles the brute-force attack, using several threads
     public class BFEngine
     {
+        // For using field instead of local variable
+        private long _checkedCount = 0;
+        public long CheckedCount => _checkedCount;
+        public long TotalCombinations() => _generator.TotalCombinations();
+
+
         // Use all processor cores except one, so the application interface stays responsive.
         public static readonly int ThreadCount = Math.Max(1, Environment.ProcessorCount - 1);
 
@@ -36,7 +42,7 @@ namespace C_FinalTask
             var token = _cts.Token;
 
             long totalCombinations = _generator.TotalCombinations();
-            long checkedCount = 0;
+            _checkedCount = 0;
 
             // Stores the password once it is found.
             string foundPassword = null;
@@ -61,27 +67,32 @@ namespace C_FinalTask
 
                     tasks[t] = Task.Run(() =>
                     {
+                        long localCount = 0;
+
                         foreach (var candidate in chunk)
                         {
-                            // Stop if the password has already been found or if the user cancelled the process
                             if (token.IsCancellationRequested || foundPassword != null)
                                 return;
 
                             if (_validator.IsMatch(candidate))
                             {
-                                // Password found
                                 foundPassword = candidate;
                                 _cts.Cancel();
                                 return;
                             }
 
-                            // Increase the number of checked passwords
-                            Interlocked.Increment(ref checkedCount);
+                            localCount++;
 
-                            // Update progress from time to time
-                            if (checkedCount % 500 == 0)
-                                OnProgress?.Invoke(checkedCount, totalCombinations);
+                            if (localCount % 500 == 0)
+                            {
+                                Interlocked.Add(ref _checkedCount, localCount);
+                                OnProgress?.Invoke(_checkedCount, totalCombinations);
+                                localCount = 0;
+                            }
                         }
+                        if (localCount > 0)
+                            Interlocked.Add(ref _checkedCount, localCount);
+
                     }, token);
                 }
 

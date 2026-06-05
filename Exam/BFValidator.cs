@@ -1,22 +1,36 @@
 ﻿namespace C_FinalTask
 {
-    // Validates generated passwords
-
     public class BFValidator
     {
-        // The hash we are trying to crack (set once at the start of the attack)
-        private readonly string _targetHash;
+        private readonly byte[] _targetHashBytes;
 
         public BFValidator(string targetHash)
         {
-            _targetHash = targetHash;
+            _targetHashBytes = ConvertHexToBytes(targetHash);
         }
 
-        // Returns true if the password matches the target hash
+        // Сравниваем byte массивы вместо строк (намного быстрее)
         public bool IsMatch(string candidate)
         {
-            string candidateHash = PasswordManager.HashPassword(candidate);
-            return candidateHash == _targetHash;
+            byte[] candidateHash = PasswordManager.HashPasswordBytes(candidate);
+            return ByteArrayEquals(_targetHashBytes, candidateHash);
+        }
+
+        // Быстрое сравнение byte массивов
+        private bool ByteArrayEquals(byte[] a, byte[] b)
+        {
+            if (a.Length != b.Length) return false;
+            for (int i = 0; i < a.Length; i++)
+                if (a[i] != b[i]) return false;
+            return true;
+        }
+
+        private byte[] ConvertHexToBytes(string hex)
+        {
+            byte[] bytes = new byte[hex.Length / 2];
+            for (int i = 0; i < bytes.Length; i++)
+                bytes[i] = byte.Parse(hex.Substring(i * 2, 2), System.Globalization.NumberStyles.HexNumber);
+            return bytes;
         }
     }
 }

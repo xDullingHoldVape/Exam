@@ -22,23 +22,24 @@ namespace Exam
         private Label lblResult;
         private RichTextBox txtLog;
 
-        // State
-        private BFEngine _engine; // nullable: not created until start button is clicked
-        private System.Windows.Forms.Timer _timer;   // Updates elapsed time display every 100 ms
+        // State variables
+        private BFEngine _engine;
+        private System.Windows.Forms.Timer _elapsedTimer;
+        private System.Windows.Forms.Timer _displayTimer;
         private DateTime _startTime;
         private bool _isRunning = false;
         private string _currentHash = "";
 
         public MainForm()
         {
-            // We build all controls manually — no designer file needed
+            // Initialize all UI components manually — no designer file needed
             InitializeComponents();
         }
 
         // Builds and lays out all UI controls
         private void InitializeComponents()
         {
-            this.Text = "FinalExam";
+            this.Text = "Password Brute Force Cracker";
             this.Size = new Size(600, 620);
             this.FormBorderStyle = FormBorderStyle.FixedSingle;
             this.StartPosition = FormStartPosition.CenterScreen;
@@ -46,24 +47,24 @@ namespace Exam
             int y = 20;
             int labelX = 20, controlX = 160, controlW = 400;
 
-            // Password row
+            // Password input row
             lblPassword = new Label { Text = "Password:", Location = new Point(labelX, y + 3), AutoSize = true };
-            txtPassword = new TextBox { Location = new Point(controlX, y), Width = 200, ReadOnly = true };
+            txtPassword = new TextBox { Location = new Point(controlX, y), Width = 200 };
             btnGenerate = new Button { Text = "Generate", Location = new Point(370, y), Width = 90 };
-            btnGenerate.Click += BtnGenerate_Click;
+            btnGenerate.Click += OnGenerateButtonClick;
 
             y += 40;
 
-            // Hash row
+            // Hash display row
             lblHash = new Label { Text = "SHA256 Hash:", Location = new Point(labelX, y + 3), AutoSize = true };
             txtHash = new TextBox { Location = new Point(controlX, y), Width = controlW, ReadOnly = true };
 
             y += 40;
 
-            // Start/Stop button
+            // Start/Stop attack button
             btnStartStop = new Button
             {
-                Text = "Start BruteForce",
+                Text = "Start Attack",
                 Location = new Point(labelX, y),
                 Width = 150,
                 Height = 35,
@@ -71,8 +72,7 @@ namespace Exam
                 ForeColor = Color.White,
                 Font = new Font("Arial", 10, FontStyle.Bold)
             };
-            btnStartStop.Click += BtnStartStop_Click;
-
+            btnStartStop.Click += OnStartStopButtonClick;
 
             y += 50;
 
@@ -108,7 +108,7 @@ namespace Exam
 
             y += 30;
 
-            // Result label
+            // Result display label
             lblResult = new Label
             {
                 Text = "Result:",
@@ -120,7 +120,7 @@ namespace Exam
 
             y += 40;
 
-            // Log box
+            // Log output box
             var lblLog = new Label { Text = "Log:", Location = new Point(labelX, y), AutoSize = true };
             y += 20;
             txtLog = new RichTextBox
@@ -134,7 +134,7 @@ namespace Exam
                 Font = new Font("Courier New", 9)
             };
 
-            // Add all UI things
+            // Add all controls to form
             this.Controls.AddRange(new Control[]
             {
                 lblPassword, txtPassword, btnGenerate,
@@ -147,157 +147,182 @@ namespace Exam
                 lblLog, txtLog
             });
 
-            // Timer: refreshes the elapsed-time label every 100 ms
-            _timer = new System.Windows.Forms.Timer { Interval = 100 };
-            _timer.Tick += (s, e) =>
+            // Timer to update elapsed time display (every 100 ms)
+            _elapsedTimer = new System.Windows.Forms.Timer { Interval = 100 };
+            _elapsedTimer.Tick += (s, e) =>
             {
                 double elapsed = (DateTime.Now - _startTime).TotalSeconds;
                 lblTime.Text = $"Elapsed: {elapsed:F2}s";
             };
 
-            Log($"Using {BFEngine.ThreadCount} thread(s) (CPU cores - 1)");
-
-
+            LogMessage($"Using {BFEngine.ThreadCount} thread(s) (CPU cores - 1)");
         }
 
-        // "Generate" button
-        private void BtnGenerate_Click(object sender, EventArgs e)
+        // Generate button click handler
+        private void OnGenerateButtonClick(object sender, EventArgs e)
         {
-            var manager = new PasswordManager();
-            string password = manager.GeneratePassword();
+            string password = txtPassword.Text.Trim();
+
+            // If field is empty - generate new password
+            if (string.IsNullOrEmpty(password))
+            {
+                var manager = new PasswordManager();
+                password = manager.GeneratePassword();
+            }
+
+            // Hash the password
             string hash = PasswordManager.HashPassword(password);
 
-            // Show the password and its hash
+            // Display password and hash
             txtPassword.Text = password;
             txtHash.Text = hash;
             _currentHash = hash;
 
-            // Reset display fields for a fresh run
-            lblResult.Text = "Result: ";
+            // Reset progress display for fresh run
+            lblResult.Text = "Result:";
             progressBar.Value = 0;
             lblProgress.Text = "Progress: 0%";
             lblTime.Text = "Elapsed: 0.00s";
 
-            Log($"Generated password: {password} (length {password.Length})");
-            Log($"Hash: {hash}");
+            LogMessage($"Password set: {password} (length {password.Length})");
+            LogMessage($"Hash: {hash}");
         }
 
-        // Start and Stop attack button
-        private void BtnStartStop_Click(object sender, EventArgs e)
+        // Start/Stop attack button click handler
+        private void OnStartStopButtonClick(object sender, EventArgs e)
         {
             if (_isRunning)
             {
-                // Stopping the brute force attack
+                // Stop the brute force attack
                 _engine?.Stop();
-                StopUI();
-                Log("Attack stopped by user.");
+                StopAttackUI();
+                LogMessage("Attack stopped by user.");
             }
             else
             {
-                // If there is no password
+                // Validate that password is set
                 if (string.IsNullOrEmpty(_currentHash))
                 {
-                    MessageBox.Show("Please generate a password first!");
+                    MessageBox.Show("Please generate or enter a password first!", "No Password", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
 
-                StartUI();
-                Log($"Starting multi-thread attack with {BFEngine.ThreadCount} threads...");
+                StartAttackUI();
+                LogMessage($"Starting multi-threaded attack with {BFEngine.ThreadCount} threads...");
 
-                // Create the engine (it will run on a background thread)
+                // Create the brute force engine
                 _engine = new BFEngine(_currentHash);
 
-                // Progress callback — called from worker threads, so marshal to UI thread
-                _engine.OnProgress = (checkedCount, total) =>
+                // Progress update callback from worker threads
+                _engine.OnProgress = (checkedCount, totalCombinations) =>
                 {
                     this.Invoke((Action)(() =>
                     {
-                        int pct = (int)(checkedCount * 100L / total);
-                        progressBar.Value = Math.Min(pct, 100);
-                        lblProgress.Text = $"Progress: {pct}% ({checkedCount:N0} / {total:N0})";
+                        int percentage = (int)(checkedCount * 100L / totalCombinations);
+                        progressBar.Value = Math.Min(percentage, 100);
                     }));
                 };
 
-                // Found / finished callback
-                _engine.OnFound = (password, elapsed) =>
+                // Password found or attack finished callback
+                _engine.OnFound = (foundPassword, elapsedSeconds) =>
                 {
                     this.Invoke((Action)(() =>
                     {
-                        _timer.Stop();
+                        _elapsedTimer.Stop();
+                        _displayTimer?.Stop();
                         _isRunning = false;
 
-                        if (password != null)
+                        if (foundPassword != null)
                         {
-                            // Password found
-                            lblResult.Text = $"Result: FOUND  \"{password}\"";
+                            // Password successfully found
+                            lblResult.Text = $"Result: FOUND - \"{foundPassword}\"";
                             lblResult.ForeColor = Color.DarkGreen;
                             progressBar.Value = 100;
-                            Log($"Multi-thread found: \"{password}\" in {elapsed:F2}s");
+                            LogMessage($"Password cracked: \"{foundPassword}\" in {elapsedSeconds:F2}s");
 
-                            // Run single-thread on a background thread for comparison
-                            Log("Running single-thread for comparison...");
+                            // Run single-threaded version for performance comparison
+                            LogMessage("Running single-threaded version for comparison...");
                             string hashCopy = _currentHash;
-                            BFEngine engineRef = _engine; // there was a mistake CS8602, so I added that ref 
-                            Thread singleThread = new Thread(() =>
+                            BFEngine engineRef = _engine;
+
+                            Thread comparisonThread = new Thread(() =>
                             {
-                                double singleTime = engineRef.RunSingleThread(hashCopy);
+                                double singleThreadTime = engineRef.RunSingleThread(hashCopy);
                                 this.Invoke((Action)(() =>
                                 {
-                                    Log($"── Performance Comparison ──────────────────");
-                                    Log($"  Multi-thread ({BFEngine.ThreadCount} threads): {elapsed:F2}s");
-                                    Log($"  Single-thread:                  {singleTime:F2}s");
-                                    double speedup = singleTime / elapsed;
-                                    Log($"  Speedup: {speedup:F2}x faster with multi-threading");
-                                    Log($"────────────────────────────────────────────");
+                                    LogMessage("────── Performance Comparison ──────");
+                                    LogMessage($"  Multi-thread ({BFEngine.ThreadCount} threads): {elapsedSeconds:F2}s");
+                                    LogMessage($"  Single-thread:               {singleThreadTime:F2}s");
+                                    double speedup = singleThreadTime / elapsedSeconds;
+                                    LogMessage($"  Speedup: {speedup:F2}x faster with multi-threading");
+                                    LogMessage("────────────────────────────────────");
                                 }));
                             });
-                            singleThread.IsBackground = true;
-                            singleThread.Start();
+                            comparisonThread.IsBackground = true;
+                            comparisonThread.Start();
                         }
                         else
                         {
-                            // Not found / stopped
+                            // Password not found or attack was stopped
                             lblResult.Text = "Result: Not found (stopped)";
                             lblResult.ForeColor = Color.DarkRed;
-                            Log($"Attack ended. Elapsed: {elapsed:F2}s");
+                            LogMessage($"Attack ended. Elapsed: {elapsedSeconds:F2}s");
                         }
 
-                        StopUI();
+                        StopAttackUI();
                     }));
                 };
 
-                // Launch the brute-force engine on a dedicated background thread
+                // Start the attack on a background thread
                 Thread attackThread = new Thread(() => _engine.StartMultiThread());
                 attackThread.IsBackground = true;
                 attackThread.Start();
             }
         }
 
-        // Switches the UI into "attack running" state
-        private void StartUI()
+        // Switches UI to "attack running" state
+        private void StartAttackUI()
         {
             _isRunning = true;
             _startTime = DateTime.Now;
-            _timer.Start();
-            btnStartStop.Text = "Stop";
+            _elapsedTimer.Start();
+
+            // Timer to smoothly update password counter every 50ms
+            _displayTimer = new System.Windows.Forms.Timer { Interval = 50 };
+            _displayTimer.Tick += (s, e) =>
+            {
+                if (_engine != null && _isRunning)
+                {
+                    long checked_count = _engine.CheckedCount;
+                    long total_combinations = _engine.TotalCombinations();
+
+                    int percentage = (int)(checked_count * 100L / total_combinations);
+                    progressBar.Value = Math.Min(percentage, 100);
+                    lblProgress.Text = $"Progress: {percentage}% ({checked_count:N0} / {total_combinations:N0})";
+                }
+            };
+            _displayTimer.Start();
+
+            btnStartStop.Text = "Stop Attack";
             btnStartStop.BackColor = Color.DarkRed;
             btnGenerate.Enabled = false;
             lblResult.Text = "Result: Searching...";
             lblResult.ForeColor = Color.DarkOrange;
         }
 
-        // Switches the UI back to "idle" state
-        private void StopUI()
+        // Switches UI back to "idle" state
+        private void StopAttackUI()
         {
             _isRunning = false;
-            _timer.Stop();
+            _elapsedTimer.Stop();
+            _displayTimer?.Stop();
             btnStartStop.Text = "Start Attack";
             btnStartStop.BackColor = Color.Green;
             btnGenerate.Enabled = true;
         }
 
-        // Appends a timestamped line to the log box
-        private void Log(string message)
+        // Add timestamped message to log box
+        private void LogMessage(string message)
         {
             txtLog.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}\n");
             txtLog.ScrollToCaret();
