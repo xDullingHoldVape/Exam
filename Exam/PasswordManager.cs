@@ -24,7 +24,6 @@ namespace C_FinalTask
         // Generates a random password with length 4 or 5
         public string GeneratePassword()
         {
-            // 6 is also included
             int length = _random.Next(4, 6);
 
             var password = new StringBuilder();
