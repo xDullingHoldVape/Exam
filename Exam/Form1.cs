@@ -52,6 +52,15 @@ namespace Exam
             btnGenerate = new Button { Text = "Generate", Location = new Point(370, y), Width = 90 };
             btnGenerate.Click += OnGenerateButtonClick;
 
+            txtPassword.TextChanged += (s, e) =>
+            {
+                if (!string.IsNullOrEmpty(txtPassword.Text))
+                {
+                    txtHash.Text = "(Enter password and click Generate)";
+                    _currentHash = "";  // Clear the old hash
+                }
+            };
+
             y += 40;
 
             // Hash display row
