@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Data.SqlTypes;
 using System.Diagnostics;
 using System.Threading;
@@ -49,56 +48,61 @@ namespace C_FinalTask
 
             var stopwatch = Stopwatch.StartNew();
 
+            var parallelOptions = new ParallelOptions
+            {
+                MaxDegreeOfParallelism = ThreadCount,
+                CancellationToken = token
+            };
+
             // Try every length from 1 up to 6
             for (int length = 1; length <= 6 && foundPassword == null && !token.IsCancellationRequested; length++)
             {
-                // Generate all possible passwords of the current length.
-                var allCombinations = new List<string>(_generator.GetCombinations(length));
+                long total = _generator.CombinationsForLength(length);
+                int currentLength = length;
 
-                // Divide the work between threads.
-                var chunks = SplitIntoChunks(allCombinations, ThreadCount);
 
-                // Create one Task per chunk (tasks run on thread-pool threads)
-                var tasks = new Task[chunks.Count];
-
-                for (int t = 0; t < chunks.Count; t++)
+                try
                 {
-                    var chunk = chunks[t]; // Capture loop variable for the closure
-
-                    tasks[t] = Task.Run(() =>
-                    {
-                        long localCount = 0;
-
-                        foreach (var candidate in chunk)
+                    Parallel.For(0, total, parallelOptions,
+                        () => 0L, // thread-local seed: local counter
+                        (i, loopState, localCount) =>
                         {
-                            if (token.IsCancellationRequested || foundPassword != null)
-                                return;
+                            if (foundPassword != null)
+                            {
+                                loopState.Stop();
+                                return localCount;
+                            }
+
+                            string candidate = _generator.GetCandidateAtIndex(currentLength, i);
 
                             if (_validator.IsMatch(candidate))
                             {
                                 foundPassword = candidate;
-                                _cts.Cancel();
-                                return;
+                                loopState.Stop();
+                                return localCount;
                             }
 
                             localCount++;
 
-                            if (localCount % 500 == 0)
+                            if (localCount >= 1000)
                             {
-                                Interlocked.Add(ref _checkedCount, localCount);
-                                OnProgress?.Invoke(_checkedCount, totalCombinations);
+                                long total2 = Interlocked.Add(ref _checkedCount, localCount);
+                                OnProgress?.Invoke(total2, totalCombinations);
                                 localCount = 0;
                             }
-                        }
-                        if (localCount > 0)
-                            Interlocked.Add(ref _checkedCount, localCount);
 
-                    }, token);
+                            return localCount;
+                        },
+                        (localCount) =>
+                        {
+                            if (localCount > 0)
+                                Interlocked.Add(ref _checkedCount, localCount);
+                        });
+
                 }
 
-                // Wait until all threads finish their work
-                try { Task.WaitAll(tasks); }
-                catch (AggregateException) { }
+                catch (OperationCanceledException) { }
+
             }
 
             stopwatch.Stop();
@@ -116,8 +120,12 @@ namespace C_FinalTask
 
             for (int length = 1; length <= 6; length++)
             {
-                foreach (var candidate in generator.GetCombinations(length))
+                long total = generator.CombinationsForLength(length);
+                for (long i = 0; i < total; i++)
+
                 {
+                    string candidate = generator.GetCandidateAtIndex(length, i);
+
                     if (validator.IsMatch(candidate))
                     {
                         stopwatch.Stop();
@@ -134,21 +142,6 @@ namespace C_FinalTask
         public void Stop()
         {
             _cts?.Cancel();
-        }
-
-        // Splits a list into smaller parts for each thread
-        private List<List<string>> SplitIntoChunks(List<string> list, int chunkCount)
-        {
-            var chunks = new List<List<string>>();
-            int chunkSize = (int)Math.Ceiling(list.Count / (double)chunkCount);
-
-            for (int i = 0; i < list.Count; i += chunkSize)
-            {
-                int end = Math.Min(i + chunkSize, list.Count);
-                chunks.Add(list.GetRange(i, end - i));
-            }
-
-            return chunks;
         }
     }
 }

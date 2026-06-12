@@ -260,7 +260,7 @@ namespace Exam
                                 {
                                     LogMessage("────── Performance Comparison ──────");
                                     LogMessage($"  Multi-thread ({BFEngine.ThreadCount} threads): {elapsedSeconds:F2}s");
-                                    LogMessage($"  Single-thread:               {singleThreadTime:F2}s");
+                                    LogMessage($"  Single-thread: {singleThreadTime:F2}s");
                                     double speedup = singleThreadTime / elapsedSeconds;
                                     LogMessage($"  Speedup: {speedup:F2}x faster with multi-threading");
                                     LogMessage("────────────────────────────────────");
