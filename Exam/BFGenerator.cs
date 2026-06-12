@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Runtime.Remoting.Messaging;
 
 namespace C_FinalTask
 {
@@ -16,38 +17,35 @@ namespace C_FinalTask
             _maxLength = maxLength;
         }
 
-        // Generates all combinations of a given lengthб example: aa, ab, ac, ..., 99
+        // Total number of combinations for a given length(CHARSET.Length ^ length)
+        public long CombinationsForLength(int length)
+        {
+            long count = 1;
+            for (int i = 0; i < length; i++)
+                count *= CHARSET.Length;
+            return count; 
+        }
+
+        public string GetCandidateAtIndex(int length, long index)
+        {
+            var chars = new char[length];
+            long baseN = CHARSET.Length;
+
+            for (int pos = length - 1; pos >= 0; pos--)
+            {
+                int digit = (int)(index % baseN);
+                chars[pos] = CHARSET[digit];
+                index /= baseN;
+            }
+
+            return new string(chars);
+        }
+
         public IEnumerable<string> GetCombinations(int length)
         {
-            // Stores the current position for each character
-            int[] indices = new int[length];
-
-            while (true)
-            {
-                // Build the current combination
-                var chars = new char[length];
-                for (int i = 0; i < length; i++)
-                    chars[i] = CHARSET[indices[i]];
-
-                yield return new string(chars);
-
-                // Move to the next combination
-                int position = length - 1;
-                while (position >= 0)
-                {
-                    indices[position]++;
-                    if (indices[position] < CHARSET.Length)
-                        break; // No carry needed, stop
-
-                    // Reset current position and move left
-                    indices[position] = 0;
-                    position--;
-                }
-
-                // No more combinations left
-                if (position < 0)
-                    yield break;
-            }
+            long total = CombinationsForLength(length);
+            for (long i = 0; i < total; i++)
+                yield return GetCandidateAtIndex(length, i);
         }
 
         // Calculates the total number of combinations, used for the progress bar.
